@@ -1,8 +1,9 @@
 package com.example.myapplication5
+
 import android.os.Bundle
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SearchView.OnQueryTextListener
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.myapplication5.databinding.ActivityMainBinding
 import kotlinx.coroutines.CoroutineScope
@@ -11,25 +12,28 @@ import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
+class MainActivity : AppCompatActivity(), androidx.appcompat.widget.SearchView.OnQueryTextListener {
 
-class MainActivity : AppCompatActivity(), OnQueryTextListener {
+    lateinit var imagesPuppies: List<String>
+    lateinit var dogsAdapter: DogsAdapter
+
     private lateinit var binding: ActivityMainBinding
-    private lateinit var adapter: DogAdapter
-    private val dogImages = mutableListOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        binding.svDogs.setOnQueryTextListener(this)
-        initRecyclerView()
-
+        binding.searchBreed.setOnQueryTextListener(this)
     }
 
-    private fun initRecyclerView() {
-        adapter = DogAdapter(dogImages)
+    private fun initCharacter(puppies: DogsResponse) {
+        if (puppies.status == "success") {
+            imagesPuppies = puppies.images
+        }
+        dogsAdapter = DogsAdapter(imagesPuppies)
+        binding.rvDogs.setHasFixedSize(true)
         binding.rvDogs.layoutManager = LinearLayoutManager(this)
-        binding.rvDogs.adapter = adapter
+        binding.rvDogs.adapter = dogsAdapter
     }
 
     private fun getRetrofit(): Retrofit {
@@ -39,40 +43,38 @@ class MainActivity : AppCompatActivity(), OnQueryTextListener {
             .build()
     }
 
-    private fun searchByName(query: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val call = getRetrofit().create(APiService::class.java).getDogsByBreeds("$query/images")
-            val puppies: DogsResponse? = call.body()
-            runOnUiThread {
-                if (call.isSuccessful) {
-                    //muestra el recyclerview
-                    val images = puppies?.images?: emptyList()
-                    dogImages.clear()
-                    dogImages.addAll(images)
-                    adapter.notifyDataSetChanged()
-                } else {
-                  showError()
-                }
-            }
-        }
 
-    }
-private fun showError(){
-    Toast.makeText(this,"Oh! ha ocurrido un error inesperado.",Toast.LENGTH_LONG).show()
-
-}
-
-    override fun onQueryTextSubmit(query: String?): Boolean {
-        if(!query.isNullOrEmpty()){
-            searchByName(query.toLowerCase())
-        }
+    override fun onQueryTextSubmit(query: String): Boolean {
+        searchByName(query.toLowerCase())
         return true
     }
 
+    private fun searchByName(query: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val call = getRetrofit().create(APIService::class.java).getCharacterByName("$query/images").execute()
+            val puppies = call.body() as DogsResponse?
+            runOnUiThread {
+                if (puppies?.status == "success") {
+                    initCharacter(puppies)
+                } else {
+                    showErrorDialog()
+                }
+                hideKeyboard()
+            }
+        }
+    }
+
+    private fun showErrorDialog() {
+        Toast.makeText(this, "Ha ocurrido un error", Toast.LENGTH_SHORT).show()
+    }
+
     override fun onQueryTextChange(newText: String?): Boolean {
-      return true
+        return true
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(binding.viewRoot.windowToken, 0)
     }
 }
-
-
-
+//funcionó
